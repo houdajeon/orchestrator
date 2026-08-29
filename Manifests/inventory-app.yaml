@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: inventory-app
-          image: aymening01/inventory-app:v1.0
+          image: aymening01/inventory-app:latest
           ports:
             - containerPort: 8080
           env:

@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: api-gateway-app
-          image: aymening01/api-gateway-app:v1.0
+          image: aymening01/api-gateway-app:latest
           ports:
             - containerPort: 3000
           env:
