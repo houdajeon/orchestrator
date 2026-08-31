@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  # Networking & Endpoints
+  GATEWAY_PORT: "3000"
+  PORT: "8080"
+  
+  # Database Hosts (Headless Service DNS Names)
+  INVENTORY_DB_HOST: "inventory-db"
+  BILLING_DB_HOST: "billing-db"
+  
+  # Message Queue Host
+  RABBITMQ_HOST: "rabbit-queue"
+  RABBITMQ_PORT: "5672"
