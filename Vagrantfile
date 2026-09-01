@@ -14,7 +14,10 @@ Vagrant.configure("2") do |config|
 
     master.vm.provision "shell", inline: <<-SHELL
       apt-get update && apt-get install -y curl
-      curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--node-ip=192.168.56.10 --write-kubeconfig-mode=644" sh -
+      modprobe nf_nat
+      modprobe xt_nat
+      modprobe xt_MASQUERADE
+      curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--node-ip=192.168.56.10 --flannel-iface=eth1 --write-kubeconfig-mode=644" sh -
       cp /var/lib/rancher/k3s/server/node-token /vagrant/node-token
     SHELL
   end
@@ -32,9 +35,12 @@ Vagrant.configure("2") do |config|
 
     agent.vm.provision "shell", inline: <<-SHELL
       apt-get update && apt-get install -y curl
+      modprobe nf_nat
+      modprobe xt_nat
+      modprobe xt_MASQUERADE
       while [ ! -f /vagrant/node-token ]; do sleep 2; done
       TOKEN=$(cat /vagrant/node-token)
-      curl -sfL https://get.k3s.io | K3S_URL=https://192.168.56.10:6443 K3S_TOKEN=$TOKEN INSTALL_K3S_EXEC="--node-ip=192.168.56.11" sh -
+      curl -sfL https://get.k3s.io | K3S_URL=https://192.168.56.10:6443 K3S_TOKEN=$TOKEN INSTALL_K3S_EXEC="--node-ip=192.168.56.11 --flannel-iface=eth1" sh -
     SHELL
   end
 

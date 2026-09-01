@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "d4e5f6a7-b8c9-40d1-a2e3-f4a5b6c7d8e9",
-    "name": "Play with Containers - Public Gateway Audit",
-    "description": "Ordered audit collection for the only public interface, the API Gateway.",
+    "name": "Play with Containers - Gateway and Messaging Audit",
+    "description": "Ordered audit collection for the public API Gateway and the manual billing-queue resilience test. Run folder 1 normally. Run folder 2 only after scaling billing-app to zero as described in that folder.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,12 +15,22 @@
       "key": "gateway_movie_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "baseline_user_id",
+      "value": "20",
+      "type": "string"
+    },
+    {
+      "key": "queued_user_id",
+      "value": "22",
+      "type": "string"
     }
   ],
   "item": [
     {
-      "name": "API Gateway",
-      "description": "Gateway movie proxy and billing publication tests.",
+      "name": "1. API Gateway and Billing Baseline",
+      "description": "Run this folder with every application pod running. It exercises the movie API and publishes the baseline billing order for user 20. Note: request 9 intentionally deletes every inventory movie as required by the CRUD audit.",
       "item": [
         {
           "name": "1. Create Movie Through Gateway",
@@ -303,7 +313,8 @@
           }
         },
         {
-          "name": "11. Queue Billing Message Through Gateway",
+          "name": "11. Queue Baseline Billing Order (User 20)",
+          "description": "Publishes the baseline order while billing-app is running. After it succeeds, verify it was consumed with: kubectl exec billing-db-0 -- psql -U appuser -d billing_db -c \"SELECT * FROM orders WHERE user_id = '20';\"",
           "event": [
             {
               "listen": "test",
@@ -313,6 +324,10 @@
                   "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
                   "pm.test('Queue confirmation is returned', function () {",
                   "    pm.expect(pm.response.json().message).to.eql('Message posted');",
+                  "});",
+                  "pm.test('Audit baseline user is 20', function () {",
+                  "    const body = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.expect(String(body.user_id)).to.eql(pm.collectionVariables.get('baseline_user_id'));",
                   "});"
                 ]
               }
@@ -329,7 +344,55 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"20\",\n  \"number_of_items\": \"99\",\n  \"total_amount\": \"250\"\n}",
+              "raw": "{\n  \"user_id\": \"{{baseline_user_id}}\",\n  \"number_of_items\": \"99\",\n  \"total_amount\": \"250\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayUrl}}/api/billing/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Messaging Queue Resilience (Manual Gate)",
+      "description": "Do not run this folder as part of the normal collection run. Audit sequence: (1) confirm user 20 exists in billing_db; (2) stop the consumer with `kubectl scale statefulset billing-app --replicas=0` and wait for billing-app-0 to terminate; (3) run the request in this folder; (4) confirm user 22 is NOT yet in `orders`; (5) restart it with `kubectl scale statefulset billing-app --replicas=1`; (6) wait for billing-app-0 to become Ready, then confirm user 22 appears. This proves RabbitMQ retained the message while the consumer was unavailable.",
+      "item": [
+        {
+          "name": "12. Queue Resilience Billing Order (User 22)",
+          "description": "PRECONDITION: billing-app must be scaled to 0 before sending this request. A 200 response proves the gateway can publish while the consumer is stopped. Before restarting billing-app, run: kubectl exec billing-db-0 -- psql -U appuser -d billing_db -c \"SELECT * FROM orders WHERE user_id = '22';\" and confirm zero rows. After scaling billing-app back to 1, repeat the query and confirm the order appears.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Queue confirmation is returned', function () {",
+                  "    pm.expect(pm.response.json().message).to.eql('Message posted');",
+                  "});",
+                  "pm.test('Audit resilience user is 22', function () {",
+                  "    const body = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.expect(String(body.user_id)).to.eql(pm.collectionVariables.get('queued_user_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{queued_user_id}}\",\n  \"number_of_items\": \"5\",\n  \"total_amount\": \"125\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

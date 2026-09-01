@@ -41,6 +41,10 @@ spec:
             - containerPort: 15672
               name: http-mgmt
           env:
+            # Erlang distribution must resolve the RabbitMQ node to this pod,
+            # not to the Kubernetes Service virtual IP.
+            - name: RABBITMQ_NODENAME
+              value: "rabbit@localhost"
             - name: RABBITMQ_USER
               valueFrom:
                 secretKeyRef:
