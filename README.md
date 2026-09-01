@@ -1,159 +1,210 @@
-# Play with Containers
+# Movie Services on Kubernetes
 
-A six-container movie inventory and asynchronous billing system built from Debian base images and managed entirely with Docker Compose.
+This project runs a movie inventory and billing system on a small K3s cluster.
+Vagrant creates two Debian virtual machines:
+
+- `master`: runs the K3s server.
+- `agent1`: runs as a K3s worker.
+
+Kubernetes manages the applications, databases, network services, storage and
+automatic scaling.
 
 ## Architecture
 
 ```text
-Client :3000
-    |
-api-gateway-app
-    | HTTP                         | AMQP
-inventory-app :8080          rabbit-queue :5672
-    | PostgreSQL                   |
-inventory-db :5432           billing-app :8080
-                                   |
-                             billing-db :5432
+Client
+  |
+  | localhost:3000
+  v
+API Gateway
+  |                         |
+  | HTTP                    | RabbitMQ message
+  v                         v
+Inventory App          RabbitMQ Queue
+  |                         |
+  v                         v
+Inventory Database     Billing App
+                            |
+                            v
+                       Billing Database
 ```
 
-All services share the private `play-with-containers` bridge network. Only the API Gateway publishes a host port. Inventory and billing data use separate PostgreSQL volumes, RabbitMQ has its own data volume, and gateway request logs use the `api-gateway-app` volume.
+The system contains six services:
 
-| Service | Purpose | Internal port | Host access |
-|---|---|---:|---|
-| `api-gateway-app` | Public API and RabbitMQ publisher | 3000 | `localhost:3000` |
-| `inventory-app` | Movie CRUD API | 8080 | Private |
-| `inventory-db` | Inventory PostgreSQL database | 5432 | Private |
-| `billing-app` | RabbitMQ consumer and health service | 8080 | Private |
-| `billing-db` | Billing PostgreSQL database | 5432 | Private |
-| `rabbit-queue` | Durable billing queue | 5672 | Private |
+| Service | Role | Kubernetes resource |
+|---|---|---|
+| API Gateway | Receives public API requests | Deployment |
+| Inventory App | Manages movie information | Deployment |
+| Inventory Database | Stores movies | StatefulSet |
+| Billing App | Processes billing messages | StatefulSet |
+| Billing Database | Stores orders | StatefulSet |
+| RabbitMQ Queue | Holds billing messages | Deployment |
 
-Every image is built locally from `debian:12-slim`; no prebuilt database, queue, or application image is used.
+The API Gateway and Inventory App can scale automatically from one to three
+replicas when CPU usage reaches 60%.
 
-## Prerequisites
+## Requirements
 
-- Docker Engine or Docker Desktop with Compose
-- Git and `curl`
-- At least 4 GB of available memory
+Install these tools before starting:
 
-```bash
-docker --version
-docker compose version
-docker info
+- VirtualBox
+- Vagrant
+- `kubectl`
+- `curl` or Postman for API tests
+
+The computer should have at least 4 GB of free memory for the virtual machines.
+
+## Project structure
+
+```text
+.
+├── Dockerfiles/       Image definitions
+├── Manifests/         Kubernetes resources
+├── Scripts/           Cluster helper scripts
+├── srcs/              Application source code
+├── Vagrantfile        Virtual machine configuration
+└── README.md          Project documentation
 ```
 
 ## Configuration
 
-```bash
-cp .env.example .env
-```
+The Kubernetes configuration is stored in `Manifests/`:
 
-Set strong, unique passwords in the ignored `.env` file:
+- `configmaps.yaml` contains service addresses and ports.
+- `secrets.yaml` contains database and RabbitMQ settings.
+- Each application has its own manifest.
 
-```dotenv
-INVENTORY_DB_USER=inventory_user
-INVENTORY_DB_PASSWORD=
-INVENTORY_DB_NAME=inventory
-BILLING_DB_USER=billing_user
-BILLING_DB_PASSWORD=
-BILLING_DB_NAME=billing
-RABBITMQ_USER=app_user
-RABBITMQ_PASSWORD=
-RABBITMQ_QUEUE=billing_queue
-GATEWAY_PORT=3000
-```
+Replace sample passwords before using the project outside a local learning
+environment. Do not place real production credentials in the repository.
 
-Do not use `guest` as `RABBITMQ_USER`; the custom RabbitMQ image rejects it. Internal addresses and ports are fixed in Compose.
+The containers use public images from the `aymening01` Docker Hub account.
 
-## Build and operate
+## Create the cluster
+
+From the project directory, run:
 
 ```bash
-docker compose config --quiet
-docker compose up --build -d
-docker compose ps
+./Scripts/orchestrator.sh create
 ```
 
+This command creates both virtual machines, installs K3s, connects the worker,
+configures `kubectl` and applies the Kubernetes manifests.
+
+Check that both nodes are ready:
+
 ```bash
-docker compose logs -f
-docker compose logs -f api-gateway-app
-docker compose restart
-docker compose stop
-docker compose start
-docker compose down
+kubectl get nodes
 ```
 
-Rebuild changed images with `docker compose up --build -d`. `docker compose down` preserves data. `docker compose down --volumes` permanently deletes the databases, queue state, and gateway logs.
-
-## Public API
-
-The base URL is `http://localhost:3000`. Trailing slashes are accepted.
+Check the deployed resources:
 
 ```bash
-# Health
-curl http://localhost:3000/health
-
-# Create, list, filter, retrieve, and update
-curl -X POST http://localhost:3000/api/movies \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Interstellar","description":"Science fiction"}'
-curl http://localhost:3000/api/movies
-curl 'http://localhost:3000/api/movies?title=inter'
-curl http://localhost:3000/api/movies/1
-curl -X PUT http://localhost:3000/api/movies/1 \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Interstellar Updated","description":"Updated description"}'
-
-# Delete one or all movies
-curl -X DELETE http://localhost:3000/api/movies/1
-curl -X DELETE http://localhost:3000/api/movies
-
-# Queue a billing order
-curl -X POST http://localhost:3000/api/billing \
-  -H 'Content-Type: application/json' \
-  -d '{"user_id":"22","number_of_items":3,"total_amount":49.99}'
+kubectl get all
+kubectl get pvc
 ```
 
-A successful billing response means RabbitMQ accepted the durable message. `billing-app` consumes it asynchronously and inserts it into `billing-db`. See `openapi.yaml` for schemas and error responses.
+All application pods should become `Running`, and both database claims should
+be `Bound`.
 
-## Inspect the infrastructure
+## Start and stop the cluster
 
 ```bash
-docker compose ps
-docker compose port api-gateway-app 3000
-docker network inspect play-with-containers
-docker volume inspect inventory-db billing-db api-gateway-app rabbit-queue
+./Scripts/orchestrator.sh start
+./Scripts/orchestrator.sh stop
 ```
 
-Load `.env` with `set -a; source .env; set +a`, then inspect application data:
+`start` starts the virtual machines. `stop` shuts them down without deleting
+the cluster data.
+
+## API usage
+
+The API is available at:
+
+```text
+http://localhost:3000
+```
+
+### Add a movie
+
+Send a `POST` request to `/api/movies/` with JSON:
+
+```json
+{
+  "title": "A new movie",
+  "description": "Very short description"
+}
+```
+
+A successful request returns status `201`.
+
+### List movies
+
+Send a `GET` request to `/api/movies/`.
+
+A successful request returns status `200` and a JSON list of movies.
+
+### Send a billing order
+
+Send a `POST` request to `/api/billing/` with JSON:
+
+```json
+{
+  "user_id": "20",
+  "number_of_items": "99",
+  "total_amount": "250"
+}
+```
+
+A successful request returns status `200`. RabbitMQ keeps the message until
+the Billing App processes it and saves the order in the billing database.
+
+## Storage and resilience
+
+The inventory and billing databases use persistent volume claims. Their data
+remains available when Kubernetes replaces a database pod.
+
+Billing is asynchronous. If the Billing App is temporarily stopped, the API
+Gateway can still place orders in RabbitMQ. The Billing App processes the
+waiting orders after it starts again.
+
+## Useful checks
+
+Use these commands when checking the project:
 
 ```bash
-docker compose exec inventory-db \
-  psql -U "$INVENTORY_DB_USER" -d "$INVENTORY_DB_NAME" \
-  -c 'SELECT id, title, description FROM movies ORDER BY id;'
+kubectl get nodes
+kubectl get pods
+kubectl get services
+kubectl get statefulsets
+kubectl get hpa
+kubectl get pvc
+kubectl get secrets
+```
 
-docker compose exec billing-db \
-  psql -U "$BILLING_DB_USER" -d "$BILLING_DB_NAME" \
-  -c 'SELECT id, user_id, number_of_items, total_amount FROM orders ORDER BY id;'
+To investigate a pod that is not running:
 
-docker compose exec rabbit-queue \
-  rabbitmqctl list_queues name durable messages_ready messages_unacknowledged consumers
-
-docker compose exec api-gateway-app \
-  tail -n 50 /var/log/api-gateway/access.log
+```bash
+kubectl describe pod POD_NAME
+kubectl logs POD_NAME
 ```
 
 ## Troubleshooting
 
-- Unhealthy container: run `docker compose ps` and `docker compose logs --tail=100 SERVICE_NAME`.
-- First startup is slow: PostgreSQL and RabbitMQ initialize before dependent services start.
-- Port 3000 is busy: set another `GATEWAY_PORT` in `.env` and recreate the gateway.
-- RabbitMQ rejects credentials: use a non-guest user; credentials persist in its volume after first initialization.
-- Source changes are missing: run `docker compose up --build --force-recreate -d`.
-- Full reset: run `docker compose down --volumes`, only when losing all project data is acceptable.
+- If a pod shows `ImagePullBackOff`, check the image name and network access.
+- If a pod shows `CrashLoopBackOff`, read its logs.
+- If a database pod stays pending, check its persistent volume claim.
+- If CPU values in the HPA are unknown, check the K3s Metrics Server.
+- If `localhost:3000` is unavailable, confirm that the master VM and API
+  Gateway pod are running.
 
-## Security and isolation
+## Main Kubernetes concepts
 
-- `.env` is ignored and excluded from image build contexts.
-- Only the gateway publishes a host port.
-- Application containers run as an unprivileged user.
-- Database and queue entrypoints drop root privileges for their server processes.
-- Credentials are injected at runtime and are not committed.
+- A **manifest** describes the desired state of a Kubernetes resource.
+- A **Deployment** manages replaceable application pods and supports scaling.
+- A **StatefulSet** gives pods stable identities and is useful for stateful
+  applications.
+- A **Service** gives pods a stable network address.
+- A **Secret** stores sensitive configuration used by pods.
+- A **ConfigMap** stores non-sensitive configuration.
+- An **HPA** changes the number of replicas based on resource usage.
+- A **PVC** requests persistent storage for application data.
