@@ -64,7 +64,7 @@ spec:
                   name: rabbitmq-secrets
                   key: RABBITMQ_PASSWORD
             - name: RABBITMQ_QUEUE
-              value: "billing_queue"
+              value: "billing-queue"
           envFrom:
             - configMapRef:
                 name: app-config
