@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
         - name: inventory-db
-          image: aymening01/inventory-db:v1.0
+          image: aymening01/inventory-db:latest
           ports:
             - containerPort: 5432
               name: postgres

@@ -27,10 +27,16 @@ spec:
     spec:
       containers:
         - name: billing-app
-          image: aymening01/billing-app:v1.0
+          image: aymening01/billing-app:latest
           ports:
             - containerPort: 8080
           env:
+            - name: BILLING_DB_HOST
+              value: "billing-db"
+
+            - name: BILLING_DB_PORT
+              value: "5432"
+
             - name: BILLING_DB_USER
               valueFrom:
                 secretKeyRef:
@@ -41,16 +47,24 @@ spec:
                 secretKeyRef:
                   name: db-secrets
                   key: BILLING_DB_PASSWORD
+            - name: BILLING_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: BILLING_DB_NAME
             - name: RABBITMQ_USER
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
+                  name: rabbitmq-secrets
                   key: RABBITMQ_USER
+
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
+                  name: rabbitmq-secrets
                   key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_QUEUE
+              value: "billing_queue"
           envFrom:
             - configMapRef:
                 name: app-config

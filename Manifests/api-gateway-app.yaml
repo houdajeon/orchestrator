@@ -31,15 +31,19 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: INVENTORY_SERVICE_URL
+              value: "http://inventory-app:8080"
+            - name: RABBITMQ_QUEUE
+              value: "billing-queue"
             - name: RABBITMQ_USER
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
+                  name: rabbitmq-secrets
                   key: RABBITMQ_USER
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-secrets
+                  name: rabbitmq-secrets
                   key: RABBITMQ_PASSWORD
           envFrom:
             - configMapRef:

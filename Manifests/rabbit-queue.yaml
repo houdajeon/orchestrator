@@ -34,20 +34,22 @@ spec:
     spec:
       containers:
         - name: rabbit-queue
-          image: aymening01/rabbit-queue:v1.0
+          image: aymening01/rabbit-queue:latest
           ports:
             - containerPort: 5672
               name: amqp
             - containerPort: 15672
               name: http-mgmt
           env:
-            - name: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_USER
               valueFrom:
                 secretKeyRef:
                   name: rabbitmq-secrets
                   key: RABBITMQ_USER
-            - name: RABBITMQ_DEFAULT_PASS
+            - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: rabbitmq-secrets
                   key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_QUEUE
+              value: "billing-queue"
