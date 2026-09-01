@@ -13,4 +13,4 @@ data:
   
   # Message Queue Host
   RABBITMQ_HOST: "rabbit-queue"
-  RA BBITMQ_PORT: "5672"
+  RABBITMQ_PORT: "5672"
