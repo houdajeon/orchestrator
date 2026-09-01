@@ -5,7 +5,7 @@ Vagrant.configure("2") do |config|
     master.vm.box = "debian/bookworm64"
     master.vm.hostname = "k3s-master"
     master.vm.network "private_network", ip: "192.168.56.10"
-    master.vm.network "forwarded_port", guest: 3000, host: 3000
+    master.vm.network "forwarded_port", guest: 30000, host: 3000
 
     master.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"
