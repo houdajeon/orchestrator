@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
         - name: billing-db
-          image: postgres:15-alpine
+          image: aymening01/billing-db:v1.0
           ports:
             - containerPort: 5432
               name: postgres

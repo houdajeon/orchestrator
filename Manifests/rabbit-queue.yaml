@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: rabbit-queue
-          image: rabbitmq:3-management-alpine
+          image: aymening01/rabbit-queue:v1.0
           ports:
             - containerPort: 5672
               name: amqp

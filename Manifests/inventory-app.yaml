@@ -32,16 +32,16 @@ spec:
             - name: INVENTORY_DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: orchestrator-secrets
+                  name: db-secrets
                   key: INVENTORY_DB_USER
             - name: INVENTORY_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: orchestrator-secrets
+                  name: db-secrets
                   key: INVENTORY_DB_PASSWORD
           envFrom:
             - configMapRef:
-                name: orchestrator-config
+                name: app-config
           resources:
             requests:
               cpu: 100m

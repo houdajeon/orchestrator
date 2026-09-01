@@ -34,16 +34,16 @@ spec:
             - name: RABBITMQ_USER
               valueFrom:
                 secretKeyRef:
-                  name: orchestrator-secrets
+                  name: db-secrets
                   key: RABBITMQ_USER
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: orchestrator-secrets
+                  name: db-secrets
                   key: RABBITMQ_PASSWORD
           envFrom:
             - configMapRef:
-                name: orchestrator-config
+                name: app-config
           resources:
             requests:
               cpu: 100m
