@@ -202,6 +202,27 @@ ssh -i .vagrant/machines/master/virtualbox/private_key vagrant@192.168.56.10
 ssh -i .vagrant/machines/agent1/virtualbox/private_key vagrant@<agent-ip>
 ```
 
+### Affiche rabbitmq
+
+```
+kubectl exec -it $(kubectl get pod -l app=rabbit-queue -o jsonpath='{.items[0].metadata.name}') -- rabbitmqctl list_queues name messages messages_ready messages_unacknowledged
+```
+### Affiche rabbitmq realtime
+
+```
+ watch 'kubectl exec $(kubectl get pod -l app=rabbit-queue -o jsonpath="{.items[0].metadata.name}") -- rabbitmqctl list_queues name messages messages_ready messages_unacknowledged'
+ ```
+### For test rabbitmq 
+
+- stop billing :
+```
+kubectl scale statefulset billing-app --replicas=0
+```
+- restart billing :
+```
+kubectl scale statefulset billing-app --replicas=1
+```
+
 ---
 
 ## Quick Reference
